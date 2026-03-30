@@ -2,10 +2,10 @@ package main
 
 import (
 	"fmt"
-
-	"rsc.io/quote/v4"
+	"practice/greetings"
 )
 
 func main() {
-	fmt.Println(quote.Go())
+	greeting := greetings.Hello("Gladys")
+	fmt.Println(greeting)
 }
