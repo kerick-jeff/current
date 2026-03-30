@@ -19,6 +19,25 @@ func Hello(name string) (string, error) {
 	}
 }
 
+// Hellos returns a map that associates each of the named people with a greeting.
+func Hellos(names []string) (map[string]string, error) {
+	// A map to associate names with greetings.
+	messages := make(map[string]string)
+
+	// Loop through the received slice of names, calling the Hello function to get a greeting for each name.
+	for _, name := range names {
+		message, err := Hello(name)
+
+		if err == nil {
+			messages[name] = message
+		} else { // In the map, associate the retrieved greeting with the name
+			return nil, err
+		}
+	}
+
+	return messages, nil
+}
+
 // Returns one of a set of greeting messages. The returned message is selected at random.
 func randomFormat() string {
 	// A slice of message formats.
