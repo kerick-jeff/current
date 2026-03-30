@@ -13,7 +13,7 @@ func main() {
 	log.SetPrefix("greetings: ")
 	log.SetFlags(0)
 
-	greeting, err := greetings.Hello("")
+	greeting, err := greetings.Hello("Gladys")
 
 	if err == nil { // If no error was returned, print the returned message to the console.
 		fmt.Println(greeting)
