@@ -11,4 +11,4 @@ Actively building my expertise in distributed systems, cloud-native infrastructu
 - CI/CD pipelines with GitHub Actions
 - Test-driven development across feature and unit levels
 - Observability using OpenTelemetry, Prometheus, Grafana, and New Relic for metrics, tracing, and production monitoring
-- Building agents for structured outputs, multimodal generation, embeddings (integrating providers like OpenAI, Anthropic, Gemini) and seamless application interactions via MCP
+- Building agents (integrating providers like OpenAI, Anthropic, Gemini) for structured outputs, multimodal generation, embeddings, and seamless application interactions via MCP
