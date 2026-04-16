@@ -3,6 +3,7 @@
 namespace App\Ai\Agents;
 
 use App\Ai\Tools\LookupPreviousTickets;
+use App\Models\Document;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Ai\Concerns\RemembersConversations;
 use Laravel\Ai\Contracts\Agent;
@@ -12,6 +13,7 @@ use Laravel\Ai\Contracts\HasTools;
 use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Messages\Message;
 use Laravel\Ai\Promptable;
+use Laravel\Ai\Tools\SimilaritySearch;
 use Stringable;
 
 class SupportAgent implements Agent, Conversational, HasTools, HasStructuredOutput
@@ -66,7 +68,16 @@ class SupportAgent implements Agent, Conversational, HasTools, HasStructuredOutp
     public function tools(): iterable
     {
         return [
-            new LookupPreviousTickets, // Lets the agent query the user's ticket history from the DB
+            // Lets the agent query the user's ticket history from the DB.
+            new LookupPreviousTickets,
+
+            // Lets the agent search the embedded FAQ documents for relevant answers. The agent decides when a similarity search is worth doing.
+            SimilaritySearch::usingModel(
+                Document::class,
+                'embedding'
+            )->withDescription(
+                'Search the knowledge base for FAQ articles relevant to the customer\'s issue. Use this before crafting your reply to check if there is documented guidance.'
+            ),
         ];
     }
 }
