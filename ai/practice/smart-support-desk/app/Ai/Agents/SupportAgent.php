@@ -2,6 +2,7 @@
 
 namespace App\Ai\Agents;
 
+use App\Ai\Tools\LookupPreviousTickets;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Ai\Contracts\Agent;
 use Laravel\Ai\Contracts\Conversational;
@@ -63,6 +64,8 @@ class SupportAgent implements Agent, Conversational, HasTools, HasStructuredOutp
      */
     public function tools(): iterable
     {
-        return [];
+        return [
+            new LookupPreviousTickets, // Lets the agent query the user's ticket history from the DB
+        ];
     }
 }
