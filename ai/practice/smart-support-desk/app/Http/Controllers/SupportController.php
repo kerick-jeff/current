@@ -57,4 +57,60 @@ class SupportController extends Controller
             'analysis'  => $analysis,
         ]);
     }
+
+    /**
+     * POST /api/support/chat
+     *
+     * Starts a new AI support conversation.
+     * Returns the reply and a conversation_id the client should store for follow-up messages.
+     */
+    public function chat(Request $request): JsonResponse
+    {
+        $request->validate(['message' => 'required|string|max:2000']);
+
+        $user = $request->user();
+
+        $response = SupportAgent::make(user: $user)
+            ->forUser($user)
+            ->prompt(
+                $request->input('message'),
+                provider: [Lab::OpenAI, Lab::Anthropic],
+            );
+
+        return response()->json([
+            'reply'           => $response['suggested_reply'],
+            'category'        => $response['category'],
+            'urgency'         => $response['urgency'],
+            'auto_resolvable' => $response['auto_resolvable'],
+            'conversation_id' => $response->conversationId,
+        ]);
+    }
+
+    /**
+     * POST /api/support/chat/{conversationId}/continue
+     *
+     * Continues an existing conversation.
+     * The RemembersConversations trait on the agent automatically loads previous messages from the DB.
+     */
+    public function continueChat(Request $request, string $conversationId): JsonResponse
+    {
+        $request->validate(['message' => 'required|string|max:2000']);
+
+        $user = $request->user();
+
+        $response = SupportAgent::make(user: $user)
+            ->continue($conversationId, as: $user)
+            ->prompt(
+                $request->input('message'),
+                provider: [Lab::OpenAI, Lab::Anthropic],
+            );
+
+        return response()->json([
+            'reply'           => $response['suggested_reply'],
+            'category'        => $response['category'],
+            'urgency'         => $response['urgency'],
+            'auto_resolvable' => $response['auto_resolvable'],
+            'conversation_id' => $conversationId,
+        ]);
+    }
 }
