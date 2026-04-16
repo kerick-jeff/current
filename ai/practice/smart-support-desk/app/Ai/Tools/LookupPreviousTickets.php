@@ -10,7 +10,12 @@ use Stringable;
 
 /**
  * This tool is available to the SupportAgent.
- * When the agent needs context about a user's history (for example, to avoid suggesting a fix that was already tried it calls this tool with the user_id and the SDK executes the handle() method on our behalf.
+ *
+ * When the agent needs context about a user's history
+ * (for example, to avoid suggesting a fix that was already tried)
+ * it calls this tool with the user_id and the SDK
+ * executes the handle() method on our behalf.
+ *
  * The agent decides WHEN to call it. We decide WHAT it returns.
  */
 class LookupPreviousTickets implements Tool
