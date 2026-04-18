@@ -6,7 +6,10 @@ use App\Ai\Agents\SupportAgent;
 use App\Models\Ticket;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Laravel\Ai\Enums\Lab;
+use Laravel\Ai\Responses\StreamableAgentResponse;
+use Laravel\Ai\Responses\StreamedAgentResponse;
 
 class SupportController extends Controller
 {
@@ -112,5 +115,26 @@ class SupportController extends Controller
             'auto_resolvable' => $response['auto_resolvable'],
             'conversation_id' => $conversationId,
         ]);
+    }
+
+    /**
+     * GET /api/support/stream?message=...
+     *
+     * Returns a streaming SSE response.
+     * Useful for a frontend that wants to display the agent's reply token-by-token as it arrives.
+     *
+     * Note: Structured output is NOT used here; streaming and structured output are mutually exclusive. This endpoint returns raw text.
+     */
+    public function stream(Request $request): StreamableAgentResponse
+    {
+        $request->validate(['message' => 'required|string|max:2000']);
+
+        return SupportAgent::make(user: $request->user())
+            ->stream(
+                $request->input('message'),
+                provider: [Lab::OpenAI, Lab::Anthropic],
+            )->then(function (StreamedAgentResponse $response) {
+                Log::info("Streaming complete: " . $response->text);
+            });
     }
 }
