@@ -6,6 +6,10 @@ use App\Ai\Middleware\AuditPromptMiddleware;
 use App\Ai\Tools\LookupPreviousTickets;
 use App\Models\Document;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
+use Laravel\Ai\Attributes\MaxSteps;
+use Laravel\Ai\Attributes\MaxTokens;
+use Laravel\Ai\Attributes\Provider;
+use Laravel\Ai\Attributes\Temperature;
 use Laravel\Ai\Concerns\RemembersConversations;
 use Laravel\Ai\Contracts\Agent;
 use Laravel\Ai\Contracts\Conversational;
@@ -13,11 +17,32 @@ use Laravel\Ai\Contracts\HasMiddleware;
 use Laravel\Ai\Contracts\HasStructuredOutput;
 use Laravel\Ai\Contracts\HasTools;
 use Laravel\Ai\Contracts\Tool;
+use Laravel\Ai\Enums\Lab;
 use Laravel\Ai\Messages\Message;
 use Laravel\Ai\Promptable;
 use Laravel\Ai\Tools\SimilaritySearch;
 use Stringable;
 
+/**
+ * SupportAgent
+ *
+ * This agent classifies and responds to customer support tickets.
+ * It has access to:
+ *   - The user's previous ticket history (via LookupPreviousTickets tool)
+ *   - The knowledge base of FAQ documents (via SimilaritySearch tool)
+ *
+ * It returns structured output so downstream code can route tickets automatically without parsing free-form text.
+ *
+ * Configuration:
+ *   - Provider: OpenAI (primary), Anthropic (failover handled at call site)
+ *   - Max tool-call steps: 5 (prevents runaway loops)
+ *   - Temperature: 0.3 (keeps responses consistent, not creative)
+ *   - Max tokens: 1024 (generous for a support reply, but bounded)
+ */
+#[Provider(Lab::OpenAI)]
+#[MaxSteps(5)]
+#[MaxTokens(1024)]
+#[Temperature(0.3)]
 class SupportAgent implements Agent, Conversational, HasTools, HasStructuredOutput, HasMiddleware
 {
     use Promptable, RemembersConversations;
