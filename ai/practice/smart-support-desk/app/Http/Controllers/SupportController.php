@@ -8,8 +8,10 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Laravel\Ai\Enums\Lab;
+use Laravel\Ai\Responses\AgentResponse;
 use Laravel\Ai\Responses\StreamableAgentResponse;
 use Laravel\Ai\Responses\StreamedAgentResponse;
+use Throwable;
 
 class SupportController extends Controller
 {
@@ -39,12 +41,7 @@ class SupportController extends Controller
         );
 
         // $response behaves like an array because the agent returns structured output
-        $analysis = [
-            'category'        => $response['category'],
-            'urgency'         => $response['urgency'],
-            'suggested_reply' => $response['suggested_reply'],
-            'auto_resolvable' => $response['auto_resolvable'],
-        ];
+        $analysis = $this->getStructuredAnalysis($response);
 
         // Persist the AI analysis back onto the ticket
         $ticket->update([
@@ -136,5 +133,71 @@ class SupportController extends Controller
             )->then(function (StreamedAgentResponse $response) {
                 Log::info("Streaming complete: " . $response->text);
             });
+    }
+
+    /**
+     * POST /api/support/analyze-bulk
+     *
+     * Accepts an array of ticket IDs and dispatches each one to the queue for background analysis.
+     * Returns immediately with a 202 Accepted.
+     *
+     * Results are written back to the tickets table asynchronously via the ->then() callback on each queued prompt.
+     */
+    public function analyzeBulk(Request $request): JsonResponse
+    {
+        $request->validate([
+            'ticket_ids'   => 'required|array|max:50',
+            'ticket_ids.*' => 'integer|exists:tickets,id',
+        ]);
+
+        $tickets = Ticket::whereIn('id', $request->input('ticket_ids'))
+            ->where('user_id', $request->user()->id)
+            ->get();
+
+        foreach ($tickets as $ticket) {
+            SupportAgent::make(user: $request->user())
+                ->queue(
+                    "Analyze this support ticket:\n\n"
+                    . "Subject: {$ticket->subject}\n\n"
+                    . "Message: {$ticket->body}\n\n"
+                    . "User ID for history lookup: {$ticket->user_id}",
+                    provider: [Lab::OpenAI, Lab::Anthropic],
+                )
+                ->then(function ($response) use ($ticket) {
+                    $analysis = $this->getStructuredAnalysis($response);
+
+                    $ticket->update([
+                        'ai_category'        => $analysis['category'],
+                        'ai_urgency'         => $analysis['urgency'],
+                        'ai_suggested_reply' => $analysis['suggested_reply'],
+                        'ai_auto_resolvable' => $analysis['auto_resolvable'],
+                        'ai_analysis'        => $analysis,
+                    ]);
+                })
+                ->catch(function (Throwable $e) use ($ticket) {
+                    Log::error('Bulk analysis failed', [
+                        'ticket_id' => $ticket->id,
+                        'error'     => $e->getMessage(),
+                    ]);
+                });
+        }
+
+        return response()->json([
+            'message'    => 'Analysis queued for ' . $tickets->count() . ' tickets.',
+            'ticket_ids' => $tickets->pluck('id'),
+        ], 202);
+    }
+
+    /**
+     *
+     */
+    private function getStructuredAnalysis(AgentResponse $response)
+    {
+        return [
+            'category'        => $response['category'],
+            'urgency'         => $response['urgency'],
+            'suggested_reply' => $response['suggested_reply'],
+            'auto_resolvable' => $response['auto_resolvable'],
+        ];
     }
 }
