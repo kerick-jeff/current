@@ -2,12 +2,14 @@
 
 namespace App\Ai\Agents;
 
+use App\Ai\Middleware\AuditPromptMiddleware;
 use App\Ai\Tools\LookupPreviousTickets;
 use App\Models\Document;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Ai\Concerns\RemembersConversations;
 use Laravel\Ai\Contracts\Agent;
 use Laravel\Ai\Contracts\Conversational;
+use Laravel\Ai\Contracts\HasMiddleware;
 use Laravel\Ai\Contracts\HasStructuredOutput;
 use Laravel\Ai\Contracts\HasTools;
 use Laravel\Ai\Contracts\Tool;
@@ -16,7 +18,7 @@ use Laravel\Ai\Promptable;
 use Laravel\Ai\Tools\SimilaritySearch;
 use Stringable;
 
-class SupportAgent implements Agent, Conversational, HasTools, HasStructuredOutput
+class SupportAgent implements Agent, Conversational, HasTools, HasStructuredOutput, HasMiddleware
 {
     use Promptable, RemembersConversations;
 
@@ -78,6 +80,16 @@ class SupportAgent implements Agent, Conversational, HasTools, HasStructuredOutp
             )->withDescription(
                 'Search the knowledge base for FAQ articles relevant to the customer\'s issue. Use this before crafting your reply to check if there is documented guidance.'
             ),
+        ];
+    }
+
+    /**
+     * Get the agent's middleware.
+     */
+    public function middleware(): array
+    {
+        return [
+            new AuditPromptMiddleware,
         ];
     }
 }
