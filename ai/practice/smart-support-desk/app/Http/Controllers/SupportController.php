@@ -136,7 +136,7 @@ class SupportController extends Controller
     }
 
     /**
-     * POST /api/support/analyze-bulk
+     * POST /api/support/tickets/analyze/bulk
      *
      * Accepts an array of ticket IDs and dispatches each one to the queue for background analysis.
      * Returns immediately with a 202 Accepted.
