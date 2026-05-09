@@ -1,58 +1,190 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Smart Support Desk
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+A REST API demonstrating major features of the **Laravel AI SDK** (`laravel/ai`). Built as a backend for an AI-assisted customer support system.
 
-## About Laravel
+---
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## What this covers
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+| SDK Feature | Where it's used |
+|---|---|
+| Agents | `SupportAgent` — classifies and responds to tickets |
+| Tools | `LookupPreviousTickets` — agent queries DB mid-response |
+| Structured Output | Agent returns typed schema, not raw text |
+| Conversation Memory | `RemembersConversations` trait on the agent |
+| Streaming | `GET /api/support/stream` SSE endpoint |
+| Queueing | `POST /api/support/tickets/analyze/bulk` dispatches batch jobs |
+| Embeddings + RAG | FAQ docs embedded into pgvector, used via `SimilaritySearch` tool |
+| Agent Middleware | `AuditPromptMiddleware` logs every prompt + token usage |
+| Agent Config | PHP attributes for provider, model, temperature |
+| Failover | OpenAI primary, Anthropic backup on every prompt call |
+| Testing | Full Feature test suite using `::fake()` utilities |
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+---
 
-## Learning Laravel
+## Architecture
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+```
+app/
+├── Ai/
+│   ├── Agents/
+│   │   └── SupportAgent.php          # Main agent class
+│   ├── Middleware/
+│   │   └── AuditPromptMiddleware.php  # Logs every prompt
+│   └── Tools/
+│       └── LookupPreviousTickets.php  # DB tool for agent
+│
+├── Http/
+│   └── Controllers/
+│       ├── SupportController.php     # Analyze, chat, stream
+│       └── KnowledgeBaseController.php
+│
+├── Models/
+│   ├── Ticket.php
+│   ├── AuditLog.php
+│   └── Document.php                  # Vector-enabled model
+│
+└── Console/
+    └── Commands/
+        └── SeedKnowledgeBase.php     # Embeds FAQ .md files
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+database/
+└── migrations/
+    ├── create_tickets_table.php
+    ├── create_audit_logs_table.php
+    └── create_documents_table.php    # Includes vector column
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
-
-```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+knowledge-base/                       # FAQ markdown files
+├── password-reset.md
+├── billing.md
+└── account-limits.md
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+---
 
-## Contributing
+## Prerequisites
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+- PHP 8.2+
+- Laravel 13
+- PostgreSQL with `pgvector` extension
+- An OpenAI API key (primary)
+- An Anthropic API key (failover)
 
-## Code of Conduct
+---
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+## Setup
 
-## Security Vulnerabilities
+```bash
+git clone https://github.com/kerick-jeff/smart-support-desk
+cd smart-support-desk
+composer install
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+cp .env.example .env
+php artisan key:generate
+```
+
+Update `.env`:
+
+```env
+DB_CONNECTION=pgsql
+DB_DATABASE=smart_support_desk
+
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+Run migrations:
+
+```bash
+php artisan migrate
+```
+
+Seed the knowledge base (embeds the FAQ files into pgvector):
+
+```bash
+php artisan kb:seed
+```
+
+Start queue worker (needed for bulk analysis):
+
+```bash
+php artisan queue:work
+```
+
+---
+
+## API Endpoints
+
+### Analyze a single ticket
+
+```
+POST /api/support/tickets/{id}/analyze
+Authorization: Bearer {token}
+```
+
+Returns structured output: `category`, `urgency`, `suggested_reply`, `auto_resolvable`.
+
+### Start a support chat
+
+```
+POST /api/support/chat
+Authorization: Bearer {token}
+Body: { "message": "I can't reset my password" }
+```
+
+Returns: `{ "reply": "...", "conversation_id": "uuid" }`
+
+### Continue a chat
+
+```
+POST /api/support/chat/{conversationId}/continue
+Authorization: Bearer {token}
+Body: { "message": "I tried that already" }
+```
+
+### Stream a response (SSE)
+
+```
+GET /api/support/stream?message=hello
+Authorization: Bearer {token}
+```
+
+Returns a streaming Server-Sent Events response.
+
+### Bulk analyze tickets
+
+```
+POST /api/support/tickets/analyze/bulk
+Authorization: Bearer {token}
+Body: { "ticket_ids": [1, 2, 3, 4, 5] }
+```
+
+Dispatches each to the queue. Results saved to `tickets.ai_analysis`.
+
+---
+
+## Running tests
+
+```bash
+php artisan test
+```
+
+All AI calls are faked in tests. No real API keys needed to run the test suite.
+
+---
+
+## Key design decisions
+
+**Why structured output instead of raw text?**
+In a real support system, downstream code needs to know the urgency level to route tickets. Raw text answers are not machine-readable. `HasStructuredOutput` with a strict schema makes the agent's output predictable.
+
+**Why pgvector instead of a vector store provider?**
+Keeps infrastructure simple. No third-party vector DB dependency. Makes it easy for deployment in a constrained environment (DigitalOcean Droplet or single-server AWS).
+
+**Why audit middleware instead of event listeners?**
+The `HasMiddleware` contract gives access to the full `AgentPrompt` object before and after, which includes model name, token usage, and the raw prompt. Events give you less context.
+
+---
 
 ## License
-
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+MIT
